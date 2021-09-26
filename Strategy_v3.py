@@ -2,7 +2,7 @@ from model import *
 import math
 
 
-def find_distance(pt1, pt2):  # Найти расстояние между точками
+def find_distance(pt1, pt2):
     return abs(pt1.x - pt2.x) + abs(pt1.y - pt2.y)
 
 
@@ -31,7 +31,7 @@ class My_Planet:
         else:
             self.planet_mission = 'free'
 
-    def count_workers(self):  # Посчитать кол-во рабочих на планете
+    def count_workers(self):
         for work_gr in self.planet.worker_groups:
             if work_gr.player_index == self.my_index:
                 self.my_workers += work_gr.number
@@ -46,7 +46,7 @@ class My_Planet:
         self.planet = planet
         self.count_workers()
 
-    def __str__(self):  # Что будет, если сделать str(My_Planet) (для print)
+    def __str__(self):
         return f"{self.x} {self.y}"
 
 
@@ -56,7 +56,7 @@ class MyStrategy:
         self.special_planets = {'stone': [], 'ore': [], 'sand': [], 'organics': [], 'free': []}
         self.idx_starter_planet = 0
 
-    def initialize(self, game):  # Делаем инициализацию планет
+    def initialize(self, game):
         self.idx_starter_planet = None
         for idx, planet in enumerate(game.planets):
             self.planets[idx] = My_Planet(planet, idx, game.my_index)
@@ -101,11 +101,23 @@ class MyStrategy:
         return close_planet
 
     def get_action(self, game: Game) -> Action:
+        moves, builds = [], []
+
         if game.current_tick == 0:
             self.initialize(game)
+            need_planets = [self.find_planet_from_list(self.planets[self.idx_starter_planet], self.special_planets[x])
+                            for x in ['ore', 'sand', 'organics', 'metal', 'plastic', 'silicon', 'accumulator', 'chip', 'replicator']]
+            security_planets = set()
+            for need_planet in need_planets:
+                for idx, planet in self.planets.items():
+                    if planet.planet_mission == 'free':
+                        dist = find_distance(planet, need_planet)
+                        if dist <= 5:
+                            security_planets.add(idx)
+            for idx in security_planets:
+                moves.append(MoveAction(self.idx_starter_planet, idx, 1, None))
         else:
             self.update(game)
-        moves, builds = [], []
 
         stone_planet = self.planets[self.idx_starter_planet]
         ore_planet = self.find_planet_from_list(self.planets[self.idx_starter_planet], self.special_planets['ore'])
@@ -118,7 +130,7 @@ class MyStrategy:
         chip_planet = self.find_planet_from_list(self.planets[self.idx_starter_planet], self.special_planets['chip'])
         replicator_planet = self.find_planet_from_list(self.planets[self.idx_starter_planet], self.special_planets['replicator'])
 
-        if game.current_tick > 900:
+        if game.current_tick > 950:
             for idx, planet in self.planets.items():
                 moves.append(MoveAction(idx, stone_planet.idx, planet.my_workers, None))
             return Action(moves, builds)
@@ -182,13 +194,20 @@ class MyStrategy:
                         builds.append(BuildingAction(planet.idx, BuildingType.FOUNDRY))
                     elif (Resource.METAL in planet.planet.resources and planet.planet.resources[Resource.METAL] > 5) and (need_ore or planet.planet.resources[Resource.METAL] > 200):
                         num_workers_to_send = min(planet.my_workers, planet.planet.resources[Resource.METAL], 150)
-                        if Resource.METAL in replicator_planet.planet.resources and replicator_planet.planet.resources[Resource.METAL] > 100:
-                            moves.append(MoveAction(idx, accumulator_planet.idx, num_workers_to_send // 2, Resource.METAL))
-                            moves.append(MoveAction(idx, chip_planet.idx, num_workers_to_send // 2, Resource.METAL))
-                        else:
+                        need_replicator = Resource.METAL not in replicator_planet.planet.resources or replicator_planet.planet.resources[Resource.METAL] < 100
+                        need_accum = Resource.METAL not in accumulator_planet.planet.resources or accumulator_planet.planet.resources[Resource.METAL] < 100
+                        if need_replicator and need_accum:
                             moves.append(MoveAction(idx, accumulator_planet.idx, num_workers_to_send // 3, Resource.METAL))
                             moves.append(MoveAction(idx, chip_planet.idx, num_workers_to_send // 3, Resource.METAL))
                             moves.append(MoveAction(idx, replicator_planet.idx, num_workers_to_send // 3, Resource.METAL))
+                        elif need_accum:
+                            moves.append(MoveAction(idx, accumulator_planet.idx, num_workers_to_send // 2, Resource.METAL))
+                            moves.append(MoveAction(idx, chip_planet.idx, num_workers_to_send // 2, Resource.METAL))
+                        elif need_replicator:
+                            moves.append(MoveAction(idx, replicator_planet.idx, num_workers_to_send // 2, Resource.METAL))
+                            moves.append(MoveAction(idx, chip_planet.idx, num_workers_to_send // 2, Resource.METAL))
+                        else:
+                            moves.append(MoveAction(idx, chip_planet.idx, num_workers_to_send, Resource.METAL))
                     elif planet.my_workers > 0 and (Resource.ORE not in planet.planet.resources or planet.planet.resources[Resource.ORE] == 1):
                         moves.append(MoveAction(idx, ore_planet.idx, planet.my_workers, None))
                     if (planet.planet.building is None and planet.my_workers >= 100) or replicator_planet.planet.building is None:
@@ -224,7 +243,7 @@ class MyStrategy:
                     if planet.planet.building is None:
                         builds.append(BuildingAction(planet.idx, BuildingType.ACCUMULATOR_FACTORY))
                     elif Resource.ACCUMULATOR in planet.planet.resources and (need_plastic or need_metal):
-                        num_workers_to_send = min(planet.my_workers, planet.planet.resources[Resource.ACCUMULATOR], 50)
+                        num_workers_to_send = min(planet.my_workers, planet.planet.resources[Resource.ACCUMULATOR], 100)
                         moves.append(MoveAction(idx, replicator_planet.idx, num_workers_to_send, Resource.ACCUMULATOR))
                     elif need_plastic and need_metal:
                         moves.append(MoveAction(idx, plastic_planet.idx, planet.my_workers//2, None))
@@ -262,7 +281,7 @@ class MyStrategy:
                     elif need_chip or need_metal or need_accumulator:
                         if Resource.ACCUMULATOR in planet.planet.resources and planet.planet.resources[Resource.ACCUMULATOR] > 100:
                             moves.append(MoveAction(idx, sand_planet.idx, planet.my_workers // 2, None))
-                            moves.append(MoveAction(idx, chip_planet.idx, planet.my_workers // 2, None))
+                            moves.append(MoveAction(idx, metal_planet.idx, planet.my_workers // 2, None))
                         else:
                             moves.append(MoveAction(idx, organics_planet.idx, planet.my_workers // 3, None))
                             moves.append(MoveAction(idx, sand_planet.idx, planet.my_workers // 3, None))
