@@ -5,6 +5,9 @@ import math
 def find_distance(pt1, pt2):
     return abs(pt1.x - pt2.x) + abs(pt1.y - pt2.y)
 
+def find_distance_with_pos(pos1, pos2):
+    return abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])
+
 
 class My_Planet:
     def __init__(self, planet: Planet, idx, my_index):
@@ -54,6 +57,7 @@ class MyStrategy:
     def __init__(self):
         self.planets = {}
         self.special_planets = {'stone': [], 'ore': [], 'sand': [], 'organics': [], 'free': []}
+        self.important_planets = {}
         self.idx_starter_planet = 0
 
     def initialize(self, game):
@@ -63,10 +67,28 @@ class MyStrategy:
             self.special_planets[self.planets[idx].planet_mission].append(idx)
             if self.planets[idx].my_workers > 0:
                 self.idx_starter_planet = idx
-        for tool in ['plastic', 'metal', 'silicon', 'accumulator', 'chip', 'replicator']:
-            dist, closest_free_planet = self.find_closest_planet(self.planets[self.idx_starter_planet], 'free')
+                self.important_planets['starter'] = idx
+                self.important_planets['stone'] = idx
+
+        for tool in ['ore', 'sand', 'organics']:
+            dist, planet = self.find_closest_planet(self.planets[self.idx_starter_planet], tool)
+            self.important_planets[tool] = planet.idx
+
+        avg_pos = ((self.planets[self.important_planets['ore']].x + self.planets[self.important_planets['sand']].x + self.planets[self.important_planets['organics']].x) / 3,
+                   (self.planets[self.important_planets['ore']].y + self.planets[self.important_planets['sand']].y + self.planets[self.important_planets['organics']].y) / 3)
+        print(avg_pos)
+
+        for tool in ['replicator', 'accumulator', 'chip', 'metal', 'plastic', 'silicon']:
+            closest_free_planet = self.find_closest_planet_with_pos(avg_pos, 'free')
+            self.important_planets[tool] = closest_free_planet.idx
             self.planets[closest_free_planet.idx].planet_mission = tool
-            self.special_planets[tool] = [closest_free_planet.idx]
+        print(self.important_planets)
+
+        print(self.important_planets)
+        # for tool in ['plastic', 'metal', 'silicon', 'accumulator', 'chip', 'replicator']:
+        #     dist, closest_free_planet = self.find_closest_planet(self.planets[self.idx_starter_planet], 'free')
+        #     self.planets[closest_free_planet.idx].planet_mission = tool
+        #     self.special_planets[tool] = [closest_free_planet.idx]
 
     def update(self, game):
         for idx, planet in enumerate(game.planets):
@@ -90,6 +112,16 @@ class MyStrategy:
                     close_planet = planet
         return closest_dist, close_planet
 
+    def find_closest_planet_with_pos(self, pos, type_of_planet):
+        closest_dist, close_planet = math.inf, None
+        for planet_idx, planet in self.planets.items():
+            if not planet.enemy_workers and planet.planet_mission == type_of_planet:
+                dist = find_distance_with_pos(pos, (planet.x, planet.y))
+                if dist < closest_dist:
+                    closest_dist = dist
+                    close_planet = planet
+        return close_planet
+
     def find_planet_from_list(self, pl, list_of_planets_idxs):
         closest_dist, close_planet = math.inf, None
         for idx, planet in self.planets.items():
@@ -105,7 +137,7 @@ class MyStrategy:
 
         if game.current_tick == 0:
             self.initialize(game)
-            need_planets = [self.find_planet_from_list(self.planets[self.idx_starter_planet], self.special_planets[x])
+            need_planets = [self.find_planet_from_list(self.planets[self.idx_starter_planet], [self.important_planets[x]])
                             for x in ['ore', 'sand', 'organics', 'metal', 'plastic', 'silicon', 'accumulator', 'chip', 'replicator']]
             security_planets = set()
             for need_planet in need_planets:
@@ -119,18 +151,18 @@ class MyStrategy:
         else:
             self.update(game)
 
-        stone_planet = self.planets[self.idx_starter_planet]
-        ore_planet = self.find_planet_from_list(self.planets[self.idx_starter_planet], self.special_planets['ore'])
-        sand_planet = self.find_planet_from_list(self.planets[self.idx_starter_planet], self.special_planets['sand'])
-        organics_planet = self.find_planet_from_list(self.planets[self.idx_starter_planet], self.special_planets['organics'])
-        metal_planet = self.find_planet_from_list(self.planets[self.idx_starter_planet], self.special_planets['metal'])
-        plastic_planet = self.find_planet_from_list(self.planets[self.idx_starter_planet], self.special_planets['plastic'])
-        silicon_planet = self.find_planet_from_list(self.planets[self.idx_starter_planet], self.special_planets['silicon'])
-        accumulator_planet = self.find_planet_from_list(self.planets[self.idx_starter_planet], self.special_planets['accumulator'])
-        chip_planet = self.find_planet_from_list(self.planets[self.idx_starter_planet], self.special_planets['chip'])
-        replicator_planet = self.find_planet_from_list(self.planets[self.idx_starter_planet], self.special_planets['replicator'])
+        stone_planet = self.planets[self.important_planets['stone']]
+        ore_planet = self.planets[self.important_planets['ore']]
+        sand_planet = self.planets[self.important_planets['sand']]
+        organics_planet = self.planets[self.important_planets['organics']]
+        metal_planet = self.planets[self.important_planets['metal']]
+        plastic_planet = self.planets[self.important_planets['plastic']]
+        silicon_planet = self.planets[self.important_planets['silicon']]
+        accumulator_planet = self.planets[self.important_planets['accumulator']]
+        chip_planet = self.planets[self.important_planets['chip']]
+        replicator_planet = self.planets[self.important_planets['replicator']]
 
-        if game.current_tick > 950:
+        if game.current_tick > 500:
             for idx, planet in self.planets.items():
                 moves.append(MoveAction(idx, stone_planet.idx, planet.my_workers, None))
             return Action(moves, builds)
@@ -164,7 +196,7 @@ class MyStrategy:
                 elif planet.planet_mission == 'ore':
                     if planet.planet.building is None:
                         builds.append(BuildingAction(planet.idx, BuildingType.MINES))
-                    elif Resource.ORE in planet.planet.resources and planet.planet.resources[Resource.ORE] > 100:
+                    elif Resource.ORE in planet.planet.resources and (planet.planet.resources[Resource.ORE] > 100 or planet.my_workers > 250):
                         num_workers_to_send = min(planet.my_workers, 100)
                         moves.append(MoveAction(idx, metal_planet.idx, num_workers_to_send, Resource.ORE))
                     elif planet.workers_in_flight == 0 and planet.planet.building is None:
@@ -195,7 +227,7 @@ class MyStrategy:
                     elif (Resource.METAL in planet.planet.resources and planet.planet.resources[Resource.METAL] > 5) and (need_ore or planet.planet.resources[Resource.METAL] > 200):
                         num_workers_to_send = min(planet.my_workers, planet.planet.resources[Resource.METAL], 150)
                         need_replicator = Resource.METAL not in replicator_planet.planet.resources or replicator_planet.planet.resources[Resource.METAL] < 100
-                        need_accum = Resource.METAL not in accumulator_planet.planet.resources or accumulator_planet.planet.resources[Resource.METAL] < 100
+                        need_accum = Resource.ACCUMULATOR not in replicator_planet.planet.resources or replicator_planet.planet.resources[Resource.ACCUMULATOR] < 50
                         if need_replicator and need_accum:
                             moves.append(MoveAction(idx, accumulator_planet.idx, num_workers_to_send // 3, Resource.METAL))
                             moves.append(MoveAction(idx, chip_planet.idx, num_workers_to_send // 3, Resource.METAL))
@@ -279,9 +311,9 @@ class MyStrategy:
                     if planet.planet.building is None:
                         builds.append(BuildingAction(planet.idx, BuildingType.REPLICATOR))
                     elif need_chip or need_metal or need_accumulator:
-                        if Resource.ACCUMULATOR in planet.planet.resources and planet.planet.resources[Resource.ACCUMULATOR] > 100:
-                            moves.append(MoveAction(idx, sand_planet.idx, planet.my_workers // 2, None))
-                            moves.append(MoveAction(idx, metal_planet.idx, planet.my_workers // 2, None))
+                        if Resource.ACCUMULATOR in planet.planet.resources and planet.planet.resources[Resource.ACCUMULATOR] > 50:
+                            moves.append(MoveAction(idx, sand_planet.idx, planet.my_workers // 3, None))
+                            moves.append(MoveAction(idx, metal_planet.idx, planet.my_workers // 3 * 2, None))
                         else:
                             moves.append(MoveAction(idx, organics_planet.idx, planet.my_workers // 3, None))
                             moves.append(MoveAction(idx, sand_planet.idx, planet.my_workers // 3, None))
