@@ -1,7 +1,7 @@
 from codegame.server_message import ServerMessage
 from codegame.client_message import ClientMessage
 from stream_wrapper import StreamWrapper
-from Route import MyStrategy
+from Strategy_v2 import MyStrategy
 # from debug_interface import DebugInterface
 import socket
 import sys
