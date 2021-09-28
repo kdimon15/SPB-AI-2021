@@ -6,7 +6,6 @@ from tools import distance, find_closest_planet_by_type, all_types_of_planets
 """
 TODO:
 - Сделать свою систему перемещиний
-- Более эффективно определять кол-во юнитов для отправки
 - Отправлять более одного отряда за тик
 - Учитывать прилетающих юнитов при отправке
 - Искать места для зданий, исходя из длины маршрутов, а не расстояния между планетами.
@@ -45,7 +44,16 @@ class Map:
         was = {pl: math.inf for pl in self.planets}
         was[start_planet] = 0
         way = route(start_planet, final_planet)
+        way.reverse()
         return way
+
+
+class Route:
+    def __init__(self, path, starter_tick, number, resource):
+        self.path = path
+        self.current_tick = starter_tick
+        self.number = number
+        self.resource = resource
 
 
 class MyStrategy:
@@ -55,6 +63,8 @@ class MyStrategy:
         self.game = None
         self.starter_planet_idx = 0
         self.map = None
+        self.routes = []
+        self.moves, self.builds = [], []
 
     def initialize(self):
         for idx, planet in enumerate(self.game.planets):
@@ -84,9 +94,20 @@ class MyStrategy:
                 if fly_group.resource is not None:
                     self.planets[fly_group.target_planet].resources_in_flight[fly_group.resource] += fly_group.number
 
+    def update_routes(self):
+        for i in range(len(self.routes) - 1, -1, -1):
+            route = self.routes[i]
+            print(self.game.current_tick, route.path, route.current_tick)
+            if route.current_tick == self.game.current_tick:
+                self.moves.append(MoveAction(route.path[0], route.path[1], route.number, route.resource))
+
+                self.routes[i].current_tick += distance(self.planets[self.routes[i].path[0]].pos, self.planets[self.routes[i].path[1]].pos)
+                self.routes[i].path = self.routes[i].path[1:]
+                if len(self.routes[i].path) < 2: del self.routes[i]
+
     def get_action(self, game: Game) -> Action:
         self.game = game
-        moves, builds = [], []
+        self.moves, self.builds = [], []
 
         if game.current_tick == 0:
             self.initialize()
@@ -94,5 +115,8 @@ class MyStrategy:
             self.update()
 
         my_planets = {tool: self.planets[self.important_planets[tool]] for tool in all_types_of_planets}
-        if game.current_tick == 10: print(self.map.find_route(my_planets['stone'].idx, my_planets['ore'].idx))
-        return Action(moves, builds)
+        if game.current_tick == 5:
+            self.routes.append(Route(self.map.find_route(my_planets['stone'].idx, my_planets['ore'].idx), game.current_tick, 20, None))
+
+        self.update_routes()
+        return Action(self.moves, self.builds)
