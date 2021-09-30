@@ -9,6 +9,8 @@ class Map:
         self.planets = planets
         self.max_distance = game.max_travel_distance
         self.connections = {planet: [] for planet in planets}
+        self.planets_distance = {planet: {pl: math.inf for pl in planets if pl != planet} for planet in planets}
+        self.planets_ways = {planet: {pl: None for pl in planets if pl != planet} for planet in planets}
 
         for idx1, planet_1 in planets.items():
             for idx2, planet_2 in enumerate(game.planets):
@@ -32,10 +34,14 @@ class Map:
                     way = cur_way
             return way
 
+        if self.planets_ways[start_planet][final_planet] is not None:
+            return self.planets_ways[start_planet][final_planet]
+
         was = {pl: math.inf for pl in self.planets}
         was[start_planet] = 0
         way = route(start_planet, final_planet)
         way.reverse()
+        self.planets_ways[start_planet][final_planet] = way
         return way
 
 
