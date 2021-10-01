@@ -15,6 +15,7 @@ class MyPlanet:
         self.resources_in_flight = {}
         self.workers_in_flight = 0
         self.my_index = my_index
+        self.num_city = -1
         self.count_workers()
 
         self.resources = {res: 0 for res in all_resources}
