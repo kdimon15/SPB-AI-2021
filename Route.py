@@ -4,7 +4,7 @@ from tools import distance
 
 
 class Map:
-    def __init__(self, planets: dict, game: Game, starter_planet_idx: int):
+    def __init__(self, planets: dict, game: Game):
         self.game = game
         self.planets = planets
         self.max_distance = game.max_travel_distance
@@ -41,7 +41,6 @@ class Map:
         way = route(start_planet, final_planet)
         way.reverse()
         self.planets_ways[start_planet][final_planet] = way
-        self.planets_distance[start_planet] = was
         return way
 
     def find_closest_free_planet(self, start_planet, exception_list):

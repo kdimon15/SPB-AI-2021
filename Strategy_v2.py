@@ -1,13 +1,11 @@
 from model import *
 from My_Planet import MyPlanet
-from tools import distance, find_closest_planet_by_type, all_types_of_planets
+from tools import distance, all_types_of_planets
 from Route import Route, Map
 
 """
 TODO:
-- Искать места для зданий, исходя из длины маршрутов, а не расстояния между планетами
 - Нападения на вражеские планеты, где юниты не останавливаются
-- Строительство дополнительных планет на всех планетах, а не только на free
 - Увеличить кол-во юнитов в летающей группе, чтобы не допустить превышение лимита кол-ва летающих групп
 """
 
@@ -33,7 +31,7 @@ class MyStrategy:
                 self.starter_planet_idx = idx
                 self.planets[idx].mission = 'stone'
 
-        self.map = Map(self.planets, self.game, self.starter_planet_idx)
+        self.map = Map(self.planets, self.game)
         self.initialize_planets()
 
     def initialize_planets(self):
@@ -164,44 +162,45 @@ class MyStrategy:
                         builds.append(BuildingAction(planet.idx, BuildingType.MINES))
                         if planet.resources[Resource.STONE] >= 50 and len(self.need_resources_for_building):
                             self.routes.append(Route(self.map.find_route(idx, my_planets['stone'].idx), game.current_tick + 1, planet.my_workers, None))
+
                     elif planet.resources[Resource.ORE] >= planet.my_workers:
-                        if planet.my_workers >= 40 and planet.resources[Resource.ORE] < 1000: planet.my_workers -= 40
+                        if planet.resources[Resource.ORE] < 500: planet.my_workers -= 40
                         if planet.my_workers > 0:
                             self.routes.append(Route(self.map.find_route(idx, my_planets['metal'][0].idx), game.current_tick, planet.my_workers // 2, Resource.ORE))
                             self.routes.append(Route(self.map.find_route(idx, my_planets['metal'][1].idx), game.current_tick, planet.my_workers - planet.my_workers // 2, Resource.ORE))
 
                 elif planet.mission == 'sand':
-                    free_workers = planet.my_workers - game.building_properties[BuildingType.CAREER].max_workers
                     if planet.building is None:
                         builds.append(BuildingAction(planet.idx, BuildingType.CAREER))
                         if planet.resources[Resource.STONE] >= 50 and len(self.need_resources_for_building):
                             self.routes.append(Route(self.map.find_route(idx, my_planets['stone'].idx), game.current_tick + 1, planet.my_workers, None))
                     elif planet.resources[Resource.SAND] >= planet.my_workers:
-                        if planet.my_workers >= 14 and planet.resources[Resource.SAND] < 1000: planet.my_workers -= 14
+                        if planet.resources[Resource.SAND] < 500: planet.my_workers -= 14
                         if planet.my_workers > 0:
                             self.routes.append(Route(self.map.find_route(idx, my_planets['silicon'].idx), game.current_tick, planet.my_workers, Resource.SAND))
 
                 elif planet.mission == 'organics':
-                    free_workers = planet.my_workers - game.building_properties[BuildingType.FARM].max_workers
                     if planet.building is None:
                         builds.append(BuildingAction(planet.idx, BuildingType.FARM))
                         if planet.resources[Resource.STONE] >= 50 and len(self.need_resources_for_building):
                             self.routes.append(Route(self.map.find_route(idx, my_planets['stone'].idx), game.current_tick + 1, planet.my_workers, None))
                     elif planet.resources[Resource.ORGANICS] >= planet.my_workers:
-                        if planet.my_workers >= 14 and planet.resources[Resource.ORGANICS] < 1000: planet.my_workers -= 14
+                        if planet.resources[Resource.ORGANICS] < 500: planet.my_workers -= 14
                         if planet.my_workers > 0:
                             self.routes.append(Route(self.map.find_route(idx, my_planets['plastic'].idx), game.current_tick, planet.my_workers, Resource.ORGANICS))
 
                 elif planet.mission == 'metal':
+                    planet.my_workers -= game.building_properties[BuildingType.FOUNDRY].max_workers
+                    free_workers = planet.my_workers - (planet.resources[Resource.METAL] + planet.resources[Resource.ORE] // 2)
                     need_ore = planet.resources[Resource.ORE] <= 1
-                    free_workers = planet.my_workers - max(planet.resources[Resource.ORE] // 2, game.building_properties[BuildingType.FOUNDRY].max_workers)
                     if planet.building is None:
                         builds.append(BuildingAction(planet.idx, BuildingType.FOUNDRY))
-                        free_workers = 0
+                        planet.my_workers += game.building_properties[BuildingType.FOUNDRY].max_workers
                         if planet.resources[Resource.STONE] >= 100 and len(self.need_resources_for_building):
                             self.routes.append(Route(self.map.find_route(idx, my_planets['stone'].idx), game.current_tick + 1, planet.my_workers, None))
                         elif planet.resources[Resource.STONE] == 0:
                             self.routes.append(Route(self.map.find_route(idx, my_planets['stone'].idx), game.current_tick+1, planet.my_workers, None))
+
                     elif need_ore:
                         num_workers_to_send = min(planet.my_workers, planet.resources[Resource.METAL])
                         need_replicator = my_planets['replicator'].resources[Resource.METAL] < 80
@@ -221,65 +220,95 @@ class MyStrategy:
                                 self.routes.append(Route(self.map.find_route(idx, my_planets['chip'].idx), game.current_tick, num_workers_to_send, Resource.METAL))
                         else:
                             self.routes.append(Route(self.map.find_route(idx, my_planets['ore'].idx), game.current_tick, planet.my_workers, None))
+                    elif free_workers > 0:
+                        self.routes.append(Route(self.map.find_route(idx, my_planets['ore'].idx), game.current_tick, free_workers, None))
+                        num_workers_to_send = planet.resources[Resource.METAL]
+                        need_replicator = my_planets['replicator'].resources[Resource.METAL] < 80
+                        need_accum = my_planets['replicator'].resources[Resource.ACCUMULATOR] < 50
+                        if num_workers_to_send > 0:
+                            if need_replicator and need_accum:
+                                self.routes.append(Route(self.map.find_route(idx, my_planets['accumulator'].idx), game.current_tick, num_workers_to_send // 3, Resource.METAL))
+                                self.routes.append(Route(self.map.find_route(idx, my_planets['chip'].idx), game.current_tick, num_workers_to_send // 3, Resource.METAL))
+                                self.routes.append(Route(self.map.find_route(idx, my_planets['replicator'].idx), game.current_tick, num_workers_to_send - num_workers_to_send // 3 * 2, Resource.METAL))
+                            elif need_accum:
+                                self.routes.append(Route(self.map.find_route(idx, my_planets['accumulator'].idx), game.current_tick, num_workers_to_send // 2, Resource.METAL))
+                                self.routes.append(Route(self.map.find_route(idx, my_planets['chip'].idx), game.current_tick, num_workers_to_send - num_workers_to_send // 2, Resource.METAL))
+                            elif need_replicator:
+                                self.routes.append(Route(self.map.find_route(idx, my_planets['replicator'].idx), game.current_tick, num_workers_to_send // 2, Resource.METAL))
+                                self.routes.append(Route(self.map.find_route(idx, my_planets['chip'].idx), game.current_tick, num_workers_to_send - num_workers_to_send // 2, Resource.METAL))
+                            else:
+                                self.routes.append(Route(self.map.find_route(idx, my_planets['chip'].idx), game.current_tick, num_workers_to_send, Resource.METAL))
 
                 elif planet.mission == 'silicon':
+                    planet.my_workers -= game.building_properties[BuildingType.FURNACE].max_workers
+                    free_workers = planet.my_workers - (planet.resources[Resource.SILICON] + planet.resources[Resource.SAND] // 2)
                     need_sand = planet.resources[Resource.SAND] <= 1
-                    free_workers = planet.my_workers - game.building_properties[BuildingType.FURNACE].max_workers
                     if planet.building is None:
                         builds.append(BuildingAction(planet.idx, BuildingType.FURNACE))
+                        planet.my_workers += game.building_properties[BuildingType.FURNACE].max_workers
                         if planet.resources[Resource.STONE] >= 100 and len(self.need_resources_for_building):
                             self.routes.append(Route(self.map.find_route(idx, my_planets['stone'].idx), game.current_tick + 2, planet.my_workers, None))
                         elif planet.resources[Resource.STONE] == 0:
                             self.routes.append(Route(self.map.find_route(idx, my_planets['stone'].idx), game.current_tick+1, planet.my_workers, None))
 
-                    elif planet.resources[Resource.SILICON] >= planet.my_workers:
-                        num_workers_to_send = min(planet.my_workers, planet.resources[Resource.SILICON])
-                        self.routes.append(Route(self.map.find_route(idx, my_planets['chip'].idx), game.current_tick, num_workers_to_send, Resource.SILICON))
                     elif need_sand:
-                        if planet.resources[Resource.SILICON] > 0:
-                            self.routes.append(Route(self.map.find_route(idx, my_planets['chip'].idx), game.current_tick, planet.resources[Resource.SILICON], Resource.SILICON))
-                            self.routes.append(Route(self.map.find_route(idx, my_planets['sand'].idx), game.current_tick, planet.my_workers - planet.resources[Resource.SILICON], None))
+                        num_workers_to_send = min(planet.my_workers, planet.resources[Resource.SILICON])
+                        if num_workers_to_send > 0:
+                            self.routes.append(Route(self.map.find_route(idx, my_planets['chip'].idx), game.current_tick, num_workers_to_send, Resource.SILICON))
                         else:
                             self.routes.append(Route(self.map.find_route(idx, my_planets['sand'].idx), game.current_tick, planet.my_workers, None))
-                    elif free_workers > 100 and planet.resources[Resource.SILICON] > 100:
-                        num_workers_to_send = min(free_workers, planet.resources[Resource.SILICON])
-                        self.routes.append(Route(self.map.find_route(idx, my_planets['chip'].idx), game.current_tick, num_workers_to_send, Resource.SILICON))
+                    elif free_workers > 0:
+                        self.routes.append(Route(self.map.find_route(idx, my_planets['sand'].idx), game.current_tick, free_workers, None))
+                        self.routes.append(Route(self.map.find_route(idx, my_planets['chip'].idx), game.current_tick, planet.resources[Resource.SILICON], Resource.SILICON))
 
                 elif planet.mission == 'plastic':
+                    planet.my_workers -= game.building_properties[BuildingType.BIOREACTOR].max_workers
+                    free_workers = planet.my_workers - (planet.resources[Resource.PLASTIC] + planet.resources[Resource.ORGANICS] // 2)
                     need_organics = planet.resources[Resource.ORGANICS] <= 1
                     if planet.building is None:
                         builds.append(BuildingAction(planet.idx, BuildingType.BIOREACTOR))
+                        planet.my_workers += game.building_properties[BuildingType.FURNACE].max_workers
                         if planet.resources[Resource.STONE] >= 100 and len(self.need_resources_for_building):
                             self.routes.append(Route(self.map.find_route(idx, my_planets['stone'].idx), game.current_tick + 2, planet.my_workers, None))
                         elif planet.resources[Resource.STONE] == 0:
                             self.routes.append(Route(self.map.find_route(idx, my_planets['stone'].idx), game.current_tick + 1, planet.my_workers, None))
-                    elif planet.resources[Resource.PLASTIC] >= planet.my_workers:
-                        num_workers_to_send = min(planet.my_workers, planet.resources[Resource.PLASTIC])
-                        self.routes.append(Route(self.map.find_route(idx, my_planets['accumulator'].idx), game.current_tick, num_workers_to_send, Resource.PLASTIC))
+
                     elif need_organics:
-                        if planet.resources[Resource.PLASTIC] > 0:
-                            self.routes.append(Route(self.map.find_route(idx, my_planets['accumulator'].idx), game.current_tick, planet.resources[Resource.PLASTIC], Resource.PLASTIC))
-                            self.routes.append(Route(self.map.find_route(idx, my_planets['organics'].idx), game.current_tick, planet.my_workers - planet.resources[Resource.PLASTIC], None))
+                        num_workers_to_send = min(planet.my_workers, planet.resources[Resource.PLASTIC])
+                        if num_workers_to_send > 0:
+                            self.routes.append(Route(self.map.find_route(idx, my_planets['accumulator'].idx), game.current_tick, num_workers_to_send, Resource.PLASTIC))
+                        else:
+                            self.routes.append(Route(self.map.find_route(idx, my_planets['organics'].idx), game.current_tick, planet.my_workers, None))
+                    elif free_workers > 0:
+                        self.routes.append(Route(self.map.find_route(idx, my_planets['organics'].idx), game.current_tick, free_workers, None))
+                        self.routes.append(Route(self.map.find_route(idx, my_planets['accumulator'].idx), game.current_tick, planet.resources[Resource.PLASTIC], Resource.PLASTIC))
 
                 elif planet.mission == 'accumulator':
+                    planet.my_workers -= game.building_properties[BuildingType.ACCUMULATOR_FACTORY].max_workers
+                    free_workers = planet.my_workers - (planet.resources[Resource.ACCUMULATOR] + min(planet.resources[Resource.METAL] // 2, planet.resources[Resource.PLASTIC] // 2))
                     need_plastic = planet.resources[Resource.PLASTIC] <= 1
                     need_metal = planet.resources[Resource.METAL] <= 1
                     if planet.building is None:
                         builds.append(BuildingAction(planet.idx, BuildingType.ACCUMULATOR_FACTORY))
+                        planet.my_workers += game.building_properties[BuildingType.ACCUMULATOR_FACTORY].max_workers
                         if planet.resources[Resource.STONE] >= 100 and len(self.need_resources_for_building):
                             self.routes.append(Route(self.map.find_route(idx, my_planets['stone'].idx), game.current_tick + 2, planet.my_workers, None))
                         elif planet.resources[Resource.STONE] == 0:
                             self.routes.append(Route(self.map.find_route(idx, my_planets['stone'].idx), game.current_tick+1, planet.my_workers, None))
-                    elif planet.resources[Resource.ACCUMULATOR] > 0 and (need_plastic or need_metal):
+
+                    elif need_plastic or need_metal:
                         num_workers_to_send = min(planet.my_workers, planet.resources[Resource.ACCUMULATOR])
-                        self.routes.append(Route(self.map.find_route(idx, my_planets['replicator'].idx), game.current_tick, num_workers_to_send, Resource.ACCUMULATOR))
-                    elif need_plastic and need_metal:
-                        self.routes.append(Route(self.map.find_route(idx, my_planets['plastic'].idx), game.current_tick, planet.my_workers // 2, None))
-                        self.routes.append(Route(self.map.find_route(idx, my_planets['metal'][num_city].idx), game.current_tick, planet.my_workers - planet.my_workers // 2, None))
-                    elif need_plastic:
-                        self.routes.append(Route(self.map.find_route(idx, my_planets['plastic'].idx), game.current_tick, planet.my_workers, None))
-                    elif need_metal:
-                        self.routes.append(Route(self.map.find_route(idx, my_planets['metal'][num_city].idx), game.current_tick, planet.my_workers, None))
+                        if num_workers_to_send > 0: self.routes.append(Route(self.map.find_route(idx, my_planets['replicator'].idx), game.current_tick, num_workers_to_send, None))
+                        elif need_plastic and need_metal:
+                            self.routes.append(Route(self.map.find_route(idx, my_planets['plastic'].idx), game.current_tick, planet.my_workers // 2, None))
+                            self.routes.append(Route(self.map.find_route(idx, my_planets['ore'].idx), game.current_tick, planet.my_workers - planet.my_workers // 2, None))
+                        elif need_plastic: self.routes.append(Route(self.map.find_route(idx, my_planets['plastic'].idx), game.current_tick, planet.my_workers, None))
+                        else: self.routes.append(Route(self.map.find_route(idx, my_planets['ore'].idx), game.current_tick, planet.my_workers, None))
+
+                    elif free_workers > 0:
+                        self.routes.append(Route(self.map.find_route(idx, my_planets['ore'].idx), game.current_tick, free_workers, None))
+                        self.routes.append(Route(self.map.find_route(idx, my_planets['replicator'].idx), game.current_tick, planet.resources[Resource.ACCUMULATOR], Resource.ACCUMULATOR))
+
 
                 elif planet.mission == 'chip':
                     need_silicon = planet.resources[Resource.SILICON] <= 1
