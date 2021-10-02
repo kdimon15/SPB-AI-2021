@@ -1,7 +1,7 @@
 import math
 from model import *
 
-all_types_of_planets = ['starter', 'stone', 'metal', 'ore', 'sand',
+all_types_of_planets = ['stone', 'metal', 'ore', 'sand',
                         'chip', 'accumulator', 'organics', 'silicon', 'plastic', 'replicator']
 
 all_resources = [Resource.METAL, Resource.STONE, Resource.ORE,
