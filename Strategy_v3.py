@@ -7,6 +7,8 @@ from Route import Route, Map
 TODO:
 - Искать самую близкую планету, от нескольких планет сразу, а не от одной
 - Строить здание по пути, а не самое близкое
+- Переработать систему отправки юнитов
+- Улучшить систему выбора планет
 """
 
 
@@ -109,11 +111,11 @@ class MyStrategy:
 
             if route.current_tick == self.game.current_tick:
                 if self.planets[route.path[0]].enemy_workers == 0:
-                    if route.number > 0: self.moves.append(MoveAction(route.path[0], route.path[1], route.number, route.resource))  # Если на планете есть враг, то надо остаться на один шаг
+                    if route.number > 0: self.moves.append(MoveAction(route.path[0], route.path[1], route.number, route.resource))
 
                     self.routes[i].current_tick += distance(self.planets[self.routes[i].path[0]].pos, self.planets[self.routes[i].path[1]].pos)
                     self.routes[i].path = self.routes[i].path[1:]
-                    if len(self.routes[i].path) < 2 or self.routes[i].number == 0: self.routes[i].current_tick = -1  # Удалить route
+                    if len(self.routes[i].path) < 2 or self.routes[i].number == 0: del self.routes[i]
                 else:
                     route.current_tick += 1
 
@@ -132,13 +134,6 @@ class MyStrategy:
         else: self.update()
 
         my_planets = self.get_my_planets()
-
-        if game.current_tick > 950:
-            for idx, planet in self.planets.items():
-                if idx != my_planets['replicator'].idx and planet.my_workers:
-                    self.routes.append(Route(self.map.find_route(idx, my_planets['replicator'].idx), game.current_tick, planet.my_workers, None))
-            self.update_routes()
-            return Action(self.moves, builds)
 
         for idx, planet in self.planets.items():
             if planet.my_workers > 0:
@@ -353,7 +348,7 @@ class MyStrategy:
 
                 elif planet.mission == 'free':
                     print(planet.idx)
-                    self.routes.append(Route(self.map.find_route(idx, my_planets['ore'].idx), game.current_tick, planet.my_workers, None))
+                    self.routes.append(Route(self.map.find_route(idx, my_planets['ore'].idx), game.current_tick+1, planet.my_workers, None))
 
         self.update_routes()
         return Action(self.moves, builds)
