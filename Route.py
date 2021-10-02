@@ -34,9 +34,7 @@ class Map:
                     way = cur_way
             return way
 
-        # print(start_planet, final_planet)
-        if self.planets_ways[start_planet][final_planet] is not None:
-            return self.planets_ways[start_planet][final_planet]
+        if self.planets_ways[start_planet][final_planet] is not None: return self.planets_ways[start_planet][final_planet]
 
         was = {pl: math.inf for pl in self.planets}
         was[start_planet] = 0
@@ -47,8 +45,7 @@ class Map:
         return way
 
     def find_closest_free_planet(self, start_planet, exception_list):
-        if self.planets_distance[start_planet][start_planet] == math.inf:
-            _ = self.find_route(start_planet, start_planet + 1)
+        if self.planets_distance[start_planet][start_planet] == math.inf: self.find_distances(start_planet)
 
         close_idx, close_dist = None, math.inf
         for idx, dist in self.planets_distance[start_planet].items():
@@ -58,17 +55,27 @@ class Map:
         return close_idx
 
     def find_closest_planet(self, start_planet, res):
-        # print(self.planets_distance[start_planet])
-        if self.planets_distance[start_planet][start_planet] == math.inf:
-            _ = self.find_route(start_planet, start_planet+1)
+        if self.planets_distance[start_planet][start_planet] == math.inf: self.find_distances(start_planet)
 
         close_idx, close_dist = None, math.inf
         for idx, dist in self.planets_distance[start_planet].items():
             if idx != start_planet and self.planets[idx].harvestable_resource == res and dist < close_dist:
                 close_idx = idx
                 close_dist = dist
-        self.planets[close_idx].mission = 'using'
         return close_idx
+
+    def find_distances(self, start_planet):
+        def cons(cur_planet):
+            for pl in self.connections[cur_planet]:
+                dist = distance(self.planets[cur_planet].pos, self.planets[pl].pos)
+                if dists[cur_planet] + dist < dists[pl]: dists[pl] = dists[cur_planet] + dist
+                else: continue
+                cons(pl)
+
+        dists = {pl: math.inf for pl in self.planets}
+        dists[start_planet] = 0
+        cons(start_planet)
+        self.planets_distance[start_planet] = dists
 
 
 class Route:
