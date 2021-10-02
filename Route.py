@@ -4,12 +4,12 @@ from tools import distance
 
 
 class Map:
-    def __init__(self, planets: dict, game: Game):
+    def __init__(self, planets: dict, game: Game, starter_planet_idx: int):
         self.game = game
         self.planets = planets
         self.max_distance = game.max_travel_distance
         self.connections = {planet: [] for planet in planets}
-        self.planets_distance = {planet: {pl: math.inf for pl in planets if pl != planet} for planet in planets}
+        self.planets_distance = {planet: {pl: math.inf for pl in planets} for planet in planets}
         self.planets_ways = {planet: {pl: None for pl in planets if pl != planet} for planet in planets}
 
         for idx1, planet_1 in planets.items():
@@ -34,6 +34,7 @@ class Map:
                     way = cur_way
             return way
 
+        # print(start_planet, final_planet)
         if self.planets_ways[start_planet][final_planet] is not None:
             return self.planets_ways[start_planet][final_planet]
 
@@ -42,7 +43,32 @@ class Map:
         way = route(start_planet, final_planet)
         way.reverse()
         self.planets_ways[start_planet][final_planet] = way
+        self.planets_distance[start_planet] = was
         return way
+
+    def find_closest_free_planet(self, start_planet, exception_list):
+        if self.planets_distance[start_planet][start_planet] == math.inf:
+            _ = self.find_route(start_planet, start_planet + 1)
+
+        close_idx, close_dist = None, math.inf
+        for idx, dist in self.planets_distance[start_planet].items():
+            if idx != start_planet and idx not in exception_list and self.planets[idx].building is None and dist < close_dist:
+                close_idx = idx
+                close_dist = dist
+        return close_idx
+
+    def find_closest_planet(self, start_planet, res):
+        # print(self.planets_distance[start_planet])
+        if self.planets_distance[start_planet][start_planet] == math.inf:
+            _ = self.find_route(start_planet, start_planet+1)
+
+        close_idx, close_dist = None, math.inf
+        for idx, dist in self.planets_distance[start_planet].items():
+            if idx != start_planet and self.planets[idx].harvestable_resource == res and dist < close_dist:
+                close_idx = idx
+                close_dist = dist
+        self.planets[close_idx].mission = 'using'
+        return close_idx
 
 
 class Route:
