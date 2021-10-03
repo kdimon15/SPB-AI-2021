@@ -6,7 +6,7 @@ from Route import Route, Map
 """
 TODO:
 - Баг со зданиями
-- Ресурсы не долетают
+- Строить новые здания, если разрушены, либо разрушать здания, если построил соперник и оно неправильного типа
 
 - Не добывать лишние ресурсы
 - Переработать систему пойстройки
@@ -141,6 +141,8 @@ class MyStrategy:
             self.update_routes()
             return Action(self.moves, builds)
 
+        if len(self.need_resources_for_building) > 0: print(game.current_tick, self.need_resources_for_building)
+
         for idx, planet in self.planets.items():
             if planet.my_workers > 0:
 
@@ -151,16 +153,20 @@ class MyStrategy:
                         self.routes.append(Route(self.map.find_route(idx, my_planets['organics'].idx), game.current_tick, planet.my_workers - planet.my_workers // 3 * 2, None))
                     elif planet.resources[Resource.STONE] > 0:
                         for planet_idx, num_resources in self.need_resources_for_building.items():
-                            if planet.my_workers >= num_resources and planet.resources[Resource.STONE] >= num_resources:
-                                self.routes.append(Route(self.map.find_route(idx, planet_idx), game.current_tick, num_resources, Resource.STONE))
-                                planet.my_workers -= num_resources
-                                planet.resources[Resource.STONE] -= num_resources
+                            if planet.my_workers > 0 and planet.resources[Resource.STONE] > 0:
+                                num_workers_to_send = min(planet.my_workers, planet.resources[Resource.STONE], num_resources)
+                                self.routes.append(Route(self.map.find_route(idx, planet_idx), game.current_tick, num_workers_to_send, Resource.STONE))
+                                planet.my_workers -= num_workers_to_send
+                                planet.resources[Resource.STONE] -= num_workers_to_send
 
                 elif planet.mission == 'ore':
                     if planet.building is None:
                         builds.append(BuildingAction(planet.idx, BuildingType.MINES))
-                        if planet.resources[Resource.STONE] >= 50 and len(self.need_resources_for_building):
+                        if len(self.need_resources_for_building):
                             self.routes.append(Route(self.map.find_route(idx, my_planets['stone'].idx), game.current_tick + 1, planet.my_workers, None))
+                        continue
+                    if len(self.need_resources_for_building) > 0:
+                        self.routes.append(Route(self.map.find_route(idx, my_planets['stone'].idx), game.current_tick, planet.my_workers, None))
                         continue
 
                     if planet.resources[Resource.ORE] < 800: planet.my_workers -= 60
@@ -172,7 +178,7 @@ class MyStrategy:
                 elif planet.mission == 'sand':
                     if planet.building is None:
                         builds.append(BuildingAction(planet.idx, BuildingType.CAREER))
-                        if planet.resources[Resource.STONE] >= 50 and len(self.need_resources_for_building):
+                        if len(self.need_resources_for_building):
                             self.routes.append(Route(self.map.find_route(idx, my_planets['stone'].idx), game.current_tick + 1, planet.my_workers, None))
                         continue
 
