@@ -33,7 +33,6 @@ class MyStrategy:
         for idx, planet in enumerate(self.game.planets):
             self.planets[idx] = MyPlanet(planet, idx, self.game.my_index)
             if self.planets[idx].my_workers > 0:
-                self.important_planets['starter'] = idx
                 self.important_planets['stone'] = idx
                 self.starter_planet_idx = idx
                 self.planets[idx].mission = 'stone'
@@ -91,7 +90,8 @@ class MyStrategy:
         self.need_resources_for_building = {}
 
         for type, planets in self.important_planets.items():
-            if type in ['starter', 'stone', 'ore', 'sand', 'organics']:
+            if type == 'stone': pass
+            elif type in ['ore', 'sand', 'organics']:
                 if self.planets[planets].building is None and self.planets[planets].resources[Resource.STONE] + self.planets[planets].resources_in_flight[Resource.STONE] < 50:
                     self.need_resources_for_building[planets] = 50 - self.planets[planets].resources[Resource.STONE] - self.planets[planets].resources_in_flight[Resource.STONE]
             elif type in ['silicon', 'plastic', 'chip', 'accumulator']:
