@@ -53,15 +53,41 @@ class Map:
                 close_dist = dist
         return close_idx
 
-    def find_closest_planet(self, start_planet, res):
-        if self.planets_distance[start_planet][start_planet] == math.inf: self.find_distances(start_planet)
+    def find_closest_free_planet_v2(self, list_of_planets, exception_list):
+        for pl in list_of_planets:
+            if self.planets_distance[pl][pl] == math.inf: self.find_distances(pl)
 
-        close_idx, close_dist = None, math.inf
-        for idx, dist in self.planets_distance[start_planet].items():
-            if idx != start_planet and self.planets[idx].harvestable_resource == res and dist < close_dist:
-                close_idx = idx
-                close_dist = dist
-        return close_idx
+        all_dists = {}
+        for pl in list_of_planets:
+            for idx, dist in self.planets_distance[pl].items():
+                if idx not in list_of_planets and idx not in exception_list and self.planets[idx].building is None:
+                    if idx in all_dists: all_dists[idx] += dist
+                    else: all_dists[idx] = dist
+
+        min_dist, pl_idx = math.inf, None
+        for idx, dist in all_dists.items():
+            if dist < min_dist:
+                min_dist = dist
+                pl_idx = idx
+        return pl_idx
+
+    def find_closest_planet(self, list_of_planets, res):
+        for pl in list_of_planets:
+            if self.planets_distance[pl][pl] == math.inf: self.find_distances(pl)
+
+        all_dists = {}
+        for pl in list_of_planets:
+            for idx, dist in self.planets_distance[pl].items():
+                if idx not in list_of_planets and self.planets[idx].harvestable_resource == res:
+                    if idx in all_dists: all_dists[idx] += dist
+                    else: all_dists[idx] = dist
+
+        min_dist, pl_idx = math.inf, None
+        for idx, dist in all_dists.items():
+            if dist < min_dist:
+                min_dist = dist
+                pl_idx = idx
+        return pl_idx
 
     def find_distances(self, start_planet):
         def cons(cur_planet):
