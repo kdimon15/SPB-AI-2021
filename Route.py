@@ -102,6 +102,9 @@ class Map:
         cons(start_planet)
         self.planets_distance[start_planet] = dists
 
+    def find_better_place(self):
+        pass
+
 
 class Route:
     def __init__(self, path, starter_tick, number, resource):
